@@ -1,0 +1,12 @@
+# Eigene Daten, Karten, Einstellungen und Schlüssel bleiben auf dem Gerät
+data/
+config.toml
+# Update-Pakete gehören in GitHub-Releases, nicht ins Repository
+dist/
+# Bibliotheken und Schriften lädt tools/fetch_assets.py (bzw. der Start) aus dem Netz
+web/vendor/
+.venv/
+__pycache__/
+*.pyc
+*.tmp
+.claude/

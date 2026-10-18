@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenRisk – Risikomonitor</title>
+  <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{ "imports": { "fflate": "./vendor/fflate/browser.js" } }</script>
+</head>
+<body>
+  <header>
+    <button id="toggle-left" class="icon" title="Ebenen ein-/ausblenden" aria-label="Ebenen ein-/ausblenden">☰</button>
+    <h1>Open<span>Risk</span></h1>
+    <input id="place" type="search" placeholder="Ort suchen …" autocomplete="off" spellcheck="false"
+      aria-label="Ort suchen" title="Ort, Stadt oder Land suchen und hinspringen">
+    <label>Zeitraum
+      <select id="hours">
+        <option value="6">6 Stunden</option>
+        <option value="24" selected>24 Stunden</option>
+        <option value="72">3 Tage</option>
+        <option value="168">7 Tage</option>
+        <option value="720">30 Tage</option>
+      </select>
+    </label>
+    <label>Stufe
+      <select id="min-severity">
+        <option value="0" selected>alle</option>
+        <option value="1">ab gering</option>
+        <option value="2">ab mittel</option>
+        <option value="3">ab hoch</option>
+      </select>
+    </label>
+    <label title="Einen früheren Zeitpunkt aus dem gespeicherten Verlauf anzeigen">Rückblick
+      <input id="at" type="datetime-local">
+    </label>
+    <button id="live" hidden>Zurück zu Live</button>
+    <div class="spacer"></div>
+    <div id="status" class="pill" title="Verbindungsstatus der Sammler">…</div>
+    <button id="refresh" title="Alle Quellen jetzt abrufen">Aktualisieren</button>
+    <button id="open-settings" class="icon" title="Einstellungen" aria-label="Einstellungen">⚙</button>
+    <div id="clock"></div>
+    <button id="toggle-right" class="icon" title="Lage ein-/ausblenden" aria-label="Lage ein-/ausblenden">☰</button>
+  </header>
+
+  <aside id="left">
+    <section>
+      <h2>Ebenen</h2>
+      <ul id="layers"></ul>
+      <div class="legend">
+        <span>Stufe:</span>
+        <i style="background:var(--sev1)"></i>gering
+        <i style="background:var(--sev2)"></i>mittel
+        <i style="background:var(--sev3)"></i>hoch
+        <i style="background:var(--sev4)"></i>kritisch
+      </div>
+    </section>
+    <section>
+      <h2>Flug- oder Schiffssuche</h2>
+      <div class="search-row">
+        <input id="vsearch" type="search" placeholder="Rufzeichen, Kennzeichen, MMSI, Typ …" autocomplete="off">
+      </div>
+      <div class="search-row">
+        <input id="vday" type="date" title="Tag">
+        <button id="vsearch-go">Suchen</button>
+      </div>
+      <ul id="vresults"></ul>
+      <button id="track-clear" hidden>Spur ausblenden</button>
+    </section>
+    <section>
+      <h2>Symbole</h2>
+      <ul id="legend"></ul>
+    </section>
+    <section>
+      <h2>Risiko-Index <small>letzte 7 Tage</small></h2>
+      <ol id="risk"></ol>
+    </section>
+    <section>
+      <h2>Datenquellen</h2>
+      <ul id="sources"></ul>
+      <p id="dbinfo" class="muted"></p>
+    </section>
+  </aside>
+
+  <main id="map"></main>
+
+  <aside id="right">
+    <section class="feed-head">
+      <h2>Lage <small id="feed-count"></small></h2>
+      <div class="search-row">
+        <input id="search" type="search" placeholder="Suchen …" autocomplete="off">
+        <button id="search-history" title="Im gesamten gespeicherten Verlauf suchen">Verlauf</button>
+      </div>
+    </section>
+    <ul id="feed"></ul>
+  </aside>
+
+  <ul id="place-results" role="listbox" hidden></ul>
+
+  <dialog id="settings">
+    <form method="dialog" class="dialog-head">
+      <h2>Einstellungen</h2>
+      <button class="icon" aria-label="Schließen">×</button>
+    </form>
+    <section>
+      <h2>Offline-Karte</h2>
+      <p id="map-info"></p>
+      <div class="row">
+        <label for="map-zoom">Detailstufe</label>
+        <select id="map-zoom"></select>
+        <button id="map-download">Herunterladen</button>
+      </div>
+      <div id="map-progress" hidden>
+        <progress max="1" value="0"></progress>
+        <span></span>
+        <button id="map-cancel">Abbrechen</button>
+      </div>
+      <p id="map-message" class="muted"></p>
+      <div class="row">
+        <button id="map-delete" class="danger">Weltkarte löschen</button>
+      </div>
+      <h3>Länder in voller Detailstufe</h3>
+      <p class="muted">Ein Land komplett bis zur höchsten Stufe (Straßen, Gebäude, Hausnummern) – viel kleiner
+        als die ganze Welt. Liegt über der Weltkarte; mehrere Länder sind möglich.</p>
+      <div class="row">
+        <select id="region-select"></select>
+        <button id="region-download">Land herunterladen</button>
+      </div>
+      <ul id="regions" class="regions"></ul>
+    </section>
+    <section>
+      <h2>Kartenstil und Gelände</h2>
+      <div class="row">
+        <label for="map-style">Kartenstil</label>
+        <select id="map-style">
+          <option value="dark">Dunkel</option>
+          <option value="light">Hell – Gelände, Wald und Gewässer wie auf Wanderkarten</option>
+        </select>
+      </div>
+      <h3>Höhendaten für Schummerung und Höhenlinien</h3>
+      <p class="muted">Berge und Täler als Schattierung, dazu Höhenlinien mit Metern (ab Zoomstufe 9). Die Welt grob
+        für den Überblick, einzelne Länder in voller Auflösung (etwa 20 m) – der Fortschritt steht oben bei der
+        Offline-Karte. Einschalten über die Ebene „Gelände“.</p>
+      <div class="row">
+        <select id="terrain-select"></select>
+        <button id="terrain-download">Höhendaten laden</button>
+      </div>
+      <ul id="terrain" class="regions"></ul>
+    </section>
+    <section>
+      <h2>Verlauf</h2>
+      <div class="row">
+        <label for="history-days">Aufbewahren</label>
+        <select id="history-days">
+          <option value="30">30 Tage</option>
+          <option value="90">3 Monate</option>
+          <option value="180">6 Monate</option>
+          <option value="365">1 Jahr</option>
+          <option value="730">2 Jahre</option>
+          <option value="0">unbegrenzt</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="track-days">Flug- und Schiffsspuren</label>
+        <select id="track-days">
+          <option value="2">2 Tage</option>
+          <option value="30">30 Tage</option>
+          <option value="90">3 Monate</option>
+          <option value="180">6 Monate</option>
+          <option value="365">1 Jahr</option>
+          <option value="0">unbegrenzt</option>
+        </select>
+      </div>
+      <p class="muted">Spuren brauchen viel Platz – grob geschätzt 10 MB pro Tag, rund 300 MB für 30 Tage.
+        Gezählt wird ab dem letzten Datenabruf: Ohne Internet wird nichts gelöscht.</p>
+      <p id="history-info" class="muted"></p>
+    </section>
+    <section>
+      <h2>API-Schlüssel</h2>
+      <p class="muted">Manche Datenquellen brauchen einen persönlichen Schlüssel des Anbieters.
+        Er bleibt auf diesem Gerät.</p>
+      <div id="api-keys"></div>
+    </section>
+    <section>
+      <h2>Software-Update</h2>
+      <p id="update-version" class="muted"></p>
+      <div class="row">
+        <label for="update-source">Update-Quelle</label>
+        <input id="update-source" placeholder="Ordner oder Web-Adresse mit latest.json" spellcheck="false" autocomplete="off">
+        <button id="update-source-save">Speichern</button>
+      </div>
+      <div class="row">
+        <button id="update-check">Nach Updates suchen</button>
+        <button id="update-install" hidden>Jetzt installieren</button>
+        <button id="update-upload">Update-Datei einspielen …</button>
+        <input id="update-file" type="file" accept=".zip" hidden>
+      </div>
+      <p id="update-notes" class="muted"></p>
+      <p id="update-message"></p>
+      <p class="muted">Datenbank, Karte, Einstellungen und Schlüssel bleiben bei einem Update erhalten.
+        Der bisherige Stand wird vorher gesichert und bei einem Fehler zurückgespielt.</p>
+    </section>
+    <section>
+      <p class="muted">Port, Netzwerkfreigabe und Datenquellen stehen in <code>config.toml</code>
+        (Vorlage: <code>config.example.toml</code>) und gelten nach einem Neustart.</p>
+    </section>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

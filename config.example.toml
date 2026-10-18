@@ -1,0 +1,44 @@
+# OpenRisk – Beispielkonfiguration.
+# Nach config.toml kopieren und anpassen; alles hier ist optional, fehlende
+# Werte kommen aus openrisk/config.py.
+
+[server]
+host = "127.0.0.1"     # "0.0.0.0" = auch von anderen Geräten im Netz erreichbar (kein Passwortschutz!)
+port = 8642
+
+[storage]
+data_dir = "data"
+# Wie lange der Verlauf (Meldungen, Warnungen, Wetter) bleibt, stellt man in der Oberfläche ein
+
+[collect]
+enabled = true                 # false = reine Anzeige aus der Datenbank, kein Netzzugriff
+
+[sources.weather]
+interval_min = 60
+cities = 150                   # Anzahl Städte (Open-Meteo: max. ca. 10.000 Abrufe/Tag kostenlos)
+
+[sources.dwd_warnings]              # amtliche Warnungen für Deutschland
+enabled = true
+
+[sources.dwd_stations]              # Messwerte der deutschen Wetterstationen
+enabled = true
+interval_min = 10
+
+[sources.gdelt]                     # Konflikte weltweit (GDELT, frei, ohne Konto)
+days = 7                            # so viele Tage zurück werden angezeigt
+interval_min = 15
+
+[sources.aircraft]
+interval_min = 2
+
+[sources.nina]                      # Warnungen des Bevölkerungsschutzes (NINA, KATWARN, BIWAPP)
+enabled = true
+
+[sources.ships]                     # API-Schlüssel: in der Oberfläche unter Einstellungen eintragen
+ship_types = [35]              # 35 = Militär, 55 = Polizei/Küstenwache
+
+# Eigene Nachrichtenquellen ersetzen die eingebaute Liste vollständig:
+# [[sources.news.feeds]]
+# name = "Tagesschau"
+# lang = "de"                  # "de" oder "en" (bestimmt die Schlagwort-Einstufung)
+# url = "https://www.tagesschau.de/ausland/index~rss2.xml"

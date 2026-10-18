@@ -1,0 +1,20 @@
+# Vorlage für den systemd-Dienst. "install.sh --service" setzt Benutzer und Pfade
+# ein und aktiviert den Dienst; von Hand: die drei Zeilen anpassen, dann
+#   sudo cp deploy/openrisk.service /etc/systemd/system/
+#   sudo systemctl enable --now openrisk
+[Unit]
+Description=OpenRisk Risikomonitor
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/openrisk
+ExecStart=/home/pi/openrisk/.venv/bin/python -m openrisk
+Environment=OPENRISK_LAUNCHER=1
+# startet auch nach einem Software-Update neu (Exit-Code 75)
+Restart=on-failure
+RestartSec=3
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target
