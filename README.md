@@ -10,6 +10,16 @@ Build-Werkzeuge, keine Cloud-Dienste.
 
 ## Installation
 
+**Windows, am einfachsten:** `OpenRisk-Setup-<Version>.exe` aus den
+[Releases](https://github.com/phillhf/openrisk/releases/latest) herunterladen und starten. Das Setup
+(ohne Administratorrechte) fragt Ordner, Port, Kartendetail und Verknüpfungen ab, erkennt eine
+vorhandene Installation und aktualisiert sie dann – Datenbank, Karten, Einstellungen und Schlüssel
+bleiben. Fehlt Python, installiert es das auf Wunsch über winget. Entfernen über *Einstellungen →
+Apps* oder „OpenRisk deinstallieren“ im Startmenü; dabei fragt es, ob auch die Daten gelöscht werden
+sollen. Still: `OpenRisk-Setup-<Version>.exe /VERYSILENT /DIR="D:\OpenRisk" /PORT=8642 /MAPZOOM=7`
+(weitere Schalter: `/PYTHON=1`, `/NODESKTOP=1`, `/AUTOSTART=1`, `/NOPIPELINES=1`, `/NOBASES=1`).
+Das Setup baut `python tools/build_setup.py` (Inno Setup 6); `tools/publish.py` hängt es an jedes Release.
+
 Der Installer fragt Installationsort, Port und Kartendetail ab, richtet Python-Umgebung
 und Abhängigkeiten ein und lädt alles, was offline gebraucht wird. Voraussetzung ist
 Python 3.11 oder neuer; fehlt es, bietet der Installer die Installation an (Windows:

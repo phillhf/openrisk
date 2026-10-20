@@ -64,6 +64,19 @@ def manifest() -> dict:
     return data
 
 
+def setup_exe() -> Path | None:
+    """Windows-Setup der aktuellen Version - wird gebaut, wenn Inno Setup da ist."""
+    exe = DIST / f"OpenRisk-Setup-{__version__}.exe"
+    if not exe.exists():
+        sys.path.insert(0, str(ROOT / "tools"))
+        import build_setup
+        if not build_setup.iscc():
+            print("Hinweis: Inno Setup fehlt - Release ohne Windows-Setup.")
+            return None
+        build_setup.build()
+    return exe
+
+
 def publish() -> None:
     release = manifest()
     version, notes = release["version"], release.get("notes") or ""
@@ -78,8 +91,13 @@ def publish() -> None:
     if run("gh", "release", "view", tag, check=False):
         print(f"Release {tag} gibt es schon - nur der Code wurde hochgeladen.")
         return
-    run("gh", "release", "create", tag, str(DIST / release["file"]), str(DIST / "latest.json"),
-        "--title", f"OpenRisk {version}", "--notes", notes or "Aktualisierung", "--latest")
+    exe = setup_exe()
+    files = [str(DIST / release["file"]), str(DIST / "latest.json")] + ([str(exe)] if exe else [])
+    text = notes or "Aktualisierung"
+    if exe:
+        text += (f"\n\n**Neu installieren unter Windows:** `{exe.name}` herunterladen und starten. "
+                 "Bestehende Installationen aktualisieren sich über Einstellungen → Software-Update.")
+    run("gh", "release", "create", tag, *files, "--title", f"OpenRisk {version}", "--notes", text, "--latest")
     print(f"Veröffentlicht: {tag} - {run('gh', 'release', 'view', tag, '--json', 'url', '--jq', '.url')}")
 
 

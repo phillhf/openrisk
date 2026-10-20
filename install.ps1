@@ -11,6 +11,11 @@
     powershell -ExecutionPolicy Bypass -File install.ps1
   Ohne Rückfragen:
     install.ps1 -InstallDir D:\OpenRisk -Port 8642 -MapZoom 7 -Unattended
+  Das grafische Setup (installer\OpenRisk.iss) ruft dieses Skript unsichtbar auf:
+    -Detect -DetectFile <Datei>   vorhandene Installation, Port und Python erkennen (key=value-Zeilen)
+    -ProgressFile <Datei>         aktuellen Schritt für die Fortschrittsanzeige schreiben
+    -AllowPythonInstall           fehlendes Python ohne Rückfrage über winget installieren
+    -Uninstall -KeepData          Programm entfernen, Datenbank, Karten und config.toml behalten
 #>
 param(
     [string]$InstallDir,
@@ -21,6 +26,11 @@ param(
     [switch]$Autostart,       # beim Anmelden automatisch starten
     [switch]$NoShortcut,      # keine Desktop-Verknüpfung
     [switch]$Unattended,      # keine Rückfragen, Standardwerte verwenden
+    [switch]$AllowPythonInstall,
+    [switch]$Detect,
+    [string]$DetectFile,
+    [string]$ProgressFile,
+    [switch]$KeepData,
     [switch]$Uninstall
 )
 
@@ -34,7 +44,22 @@ $MinPython = [version]'3.11'
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $Startup = [Environment]::GetFolderPath('Startup')
 
-function Write-Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
+function Write-Step($text) {
+    Write-Host "`n== $text" -ForegroundColor Cyan
+    if ($ProgressFile) { try { [System.IO.File]::WriteAllText($ProgressFile, $text) } catch { } }
+}
+
+function Stop-OpenRisk($dir) {
+    # läuft OpenRisk aus diesem Ordner, ließen sich Python-Umgebung und Dateien nicht ersetzen
+    $venv = (Join-Path $dir '.venv').TrimEnd('\') + '\'
+    $running = Get-CimInstance Win32_Process -Filter "Name = 'python.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($venv, [System.StringComparison]::OrdinalIgnoreCase) }
+    foreach ($process in $running) {
+        Write-Host "OpenRisk wird beendet (Prozess $($process.ProcessId))."
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    if ($running) { Start-Sleep -Seconds 2 }
+}
 
 function Ask($question, $default) {
     if ($Unattended) { return $default }
@@ -115,15 +140,62 @@ function New-Shortcut($path, $target, $workDir) {
     $shortcut.Save()
 }
 
+# ------------------------------------------------------------------ Erkennen
+if ($Detect) {
+    # für das grafische Setup: was ist schon da? (key=value, eine Angabe je Zeile)
+    # nur der angegebene Ordner, sonst die üblichen Orte; eine Installation mit Update-System (updater.py) hat Vorrang
+    $candidates = if ($InstallDir) { @($InstallDir) } else { @('C:\Tools\OpenRisk', $DefaultDir) }
+    $dir = $candidates | Where-Object { Test-Path (Join-Path $_ 'openrisk\updater.py') } | Select-Object -First 1
+    if (-not $dir) { $dir = $candidates | Where-Object { Test-Path (Join-Path $_ 'openrisk\__main__.py') } | Select-Object -First 1 }
+    $lines = @()
+    $init = if ($dir) { Join-Path $dir 'openrisk\__init__.py' } else { '' }
+    if ($init -and (Test-Path $init)) {
+        $lines += 'found=1', "dir=$dir"
+        $match = Select-String -Path $init -Pattern '__version__\s*=\s*"([^"]+)"' | Select-Object -First 1
+        if ($match) { $lines += "version=$($match.Matches[0].Groups[1].Value)" }
+        $config = Join-Path $dir 'config.toml'
+        if (Test-Path $config) {
+            $portMatch = Select-String -Path $config -Pattern '^\s*port\s*=\s*(\d+)' | Select-Object -First 1
+            if ($portMatch) { $lines += "port=$($portMatch.Matches[0].Groups[1].Value)" }
+        }
+        if (Test-Path (Join-Path $dir 'data\map\world.pmtiles')) { $lines += 'map=1' }
+        $lines += "desktop=$([int](Test-Path (Join-Path $Desktop 'OpenRisk.lnk')))"
+        $lines += "autostart=$([int](Test-Path (Join-Path $Startup 'OpenRisk.lnk')))"
+    } else { $lines += 'found=0' }
+    $python = Find-Python
+    if ($python) { $lines += "python=$($python.Exe)", "pyversion=$(Get-PythonVersion $python.Exe $python.Args)" }
+    if (Get-Command winget -ErrorAction SilentlyContinue) { $lines += 'winget=1' }
+    if ($DetectFile) { [System.IO.File]::WriteAllLines($DetectFile, $lines) } else { $lines }
+    return
+}
+
 # ------------------------------------------------------------------ Entfernen
 if ($Uninstall) {
     if (-not $InstallDir) { $InstallDir = Ask 'Installationsort von OpenRisk' $DefaultDir }
-    if (-not (Test-Path (Join-Path $InstallDir 'openrisk\__main__.py'))) {
+    if (-not (Test-Path (Join-Path $InstallDir 'openrisk\__main__.py')) -and -not (Test-Path (Join-Path $InstallDir 'data'))) {
         throw "In '$InstallDir' liegt keine OpenRisk-Installation."
     }
-    if (-not $Unattended -and -not (Ask-YesNo "OpenRisk samt Datenbank und Karten in '$InstallDir' löschen?" $false)) { return }
-    Remove-Item (Join-Path $Desktop 'OpenRisk.lnk'), (Join-Path $Startup 'OpenRisk.lnk') -ErrorAction SilentlyContinue
+    if (-not $KeepData -and -not $Unattended -and
+        -not (Ask-YesNo "OpenRisk samt Datenbank und Karten in '$InstallDir' löschen?" $false)) { return }
+    Stop-OpenRisk $InstallDir
+    # nur Verknüpfungen, die auf diese Installation zeigen - eine andere Installation behält ihre
+    $shell = New-Object -ComObject WScript.Shell
+    $prefix = $InstallDir.TrimEnd('\') + '\'
+    foreach ($link in (Join-Path $Desktop 'OpenRisk.lnk'), (Join-Path $Startup 'OpenRisk.lnk')) {
+        if ((Test-Path $link) -and $shell.CreateShortcut($link).TargetPath.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            Remove-Item $link -ErrorAction SilentlyContinue
+        }
+    }
     Set-Location $env:TEMP   # nicht im zu löschenden Ordner stehen
+    if ($KeepData) {
+        # Programm weg, eigene Daten bleiben: eine spätere Neuinstallation übernimmt sie
+        foreach ($item in '.venv', 'openrisk', 'web', 'tools', 'deploy', 'OpenRisk.bat', 'requirements.txt', 'README.md',
+                          'config.example.toml', 'install.ps1', 'install.bat') {
+            Remove-Item (Join-Path $InstallDir $item) -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        Write-Host "OpenRisk wurde entfernt. Daten und config.toml liegen weiter in $InstallDir."
+        return
+    }
     Remove-Item $InstallDir -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path $InstallDir) {
         Write-Warning "Nicht alles ließ sich löschen (läuft OpenRisk noch?). Rest bitte von Hand entfernen: $InstallDir"
@@ -192,7 +264,9 @@ $python = Find-Python
 if (-not $python) {
     Write-Host "Python $MinPython oder neuer wurde nicht gefunden."
     $winget = Get-Command winget -ErrorAction SilentlyContinue
-    if ($winget -and (Ask-YesNo 'Python 3.13 jetzt über winget installieren (stimmt dessen Lizenzbedingungen zu)?' $true)) {
+    $installPython = $AllowPythonInstall -or ((-not $Unattended) -and
+        (Ask-YesNo 'Python 3.13 jetzt über winget installieren (stimmt dessen Lizenzbedingungen zu)?' $true))
+    if ($winget -and $installPython) {
         Invoke-Native 'Python-Installation' 'winget' @('install', '-e', '--id', 'Python.Python.3.13', '--scope', 'user',
             '--accept-package-agreements', '--accept-source-agreements')
         $python = Find-Python
@@ -202,6 +276,7 @@ if (-not $python) {
 Write-Host "Verwende $($python.Exe) $($python.Args) (Version $(Get-PythonVersion $python.Exe $python.Args))"
 
 # -------------------------------------------------------------------- Dateien
+Stop-OpenRisk $InstallDir
 Write-Step "Programmdateien nach $InstallDir"
 if ($InPlace) {
     Write-Host 'Installation im Quellordner - nichts zu kopieren.'
