@@ -49,7 +49,8 @@ DEFAULTS: dict = {
         "countries": {"enabled": True, "interval_min": 14 * 24 * 60},  # Länderdaten (GeoNames, Weltbank)
         "cityinfo": {"enabled": True, "interval_min": 14 * 24 * 60},  # Gemeinden (Destatis), Städte (Wikidata)
         "osm_de": {"enabled": True, "interval_min": 30 * 24 * 60},  # Masten, Bunker, Leitungen, Wasser (OpenStreetMap)
-        "internet": {"enabled": True, "interval_min": 30 * 24 * 60},  # Seekabel, Internetknoten, Rechenzentren
+        "internet": {"enabled": True, "interval_min": 30 * 24 * 60},
+        "nuclear": {"enabled": True, "interval_min": 30 * 24 * 60},  # Kernkraftwerke (GeoNuclearData)  # Seekabel, Internetknoten, Rechenzentren
         # Konflikte weltweit aus GDELT (frei, ohne Konto), alle 15 Minuten; gezeigt werden die letzten `days` Tage
         "gdelt": {"enabled": True, "interval_min": 15, "days": 7},
         "aircraft": {

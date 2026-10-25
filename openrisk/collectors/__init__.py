@@ -27,7 +27,7 @@ class NotReady(Exception):
     """Quelle kann noch nicht abgerufen werden (z. B. keine Anmeldung); der Text steht im Quellenstatus."""
 
 
-from . import (aircraft, cityinfo, countries, dwd_stations, dwd_warnings, eonet, gdacs, gdelt, internet, news, nina, osm_de, places,  # noqa: E402
+from . import (aircraft, cityinfo, countries, dwd_stations, dwd_warnings, eonet, gdacs, gdelt, internet, news, nina, nuclear, osm_de, places,  # noqa: E402
                radiation, radon, usgs, weather, weathermaps, wind)
 
 PERIODIC = {
@@ -47,7 +47,8 @@ PERIODIC = {
     "eurdep": radiation.collect_eurdep,
     "radon": radon.collect,
     "osm_de": osm_de.collect,
-    "internet": internet.collect,  # Seekabel, Internetknoten, Rechenzentren
+    "internet": internet.collect,
+    "nuclear": nuclear.collect,  # Kernkraftwerke weltweit  # Seekabel, Internetknoten, Rechenzentren
     "places": places.collect,
     "aircraft": aircraft.collect,
     "gdelt": gdelt.collect,

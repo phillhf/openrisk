@@ -25,6 +25,7 @@ const LAYERS = {
   bases: { label: 'Militärbasen', color: '#a3e635', ids: ['bases'] },
   barracks: { label: 'Kasernen', color: '#a8a29e', ids: ['bases-barracks'] },
   pipelines: { label: 'Öl-Pipelines', color: '#e879f9', ids: ['pipelines'] },
+  nuclear: { label: 'Kernkraftwerke (weltweit)', color: '#facc15', ids: ['nuclear', 'nuclear-label'] },
   radon: { label: 'Radon (BfS)', color: '#f5d90a', ids: ['radon-fill', 'radon-areas-line', 'radon-areas-hit'] },
   masts: { label: 'Mobilfunkmasten (DE)', color: '#f472b6', ids: ['masts', 'masts-label'] },
   bunkers: { label: 'Bunker (DE)', color: '#cbd5e1', ids: ['bunkers', 'bunkers-label'] },
@@ -34,6 +35,23 @@ const LAYERS = {
   datacenters: { label: 'Rechenzentren', color: '#818cf8', ids: ['datacenters', 'datacenters-label'] },
   telecom: { label: 'Fernmelde-/Glasfaserleitungen (DE)', color: '#f97316', ids: ['telecom'] },
 };
+// Ebenen im Menü nach Themen; jede Gruppe lässt sich einklappen
+const GROUPS = [
+  ['lage', 'Lage & Konflikte', ['risk', 'news', 'conflict', 'disaster']],
+  ['wetter', 'Wetter', ['weather', 'radar', 'clouds', 'wind', 'stations']],
+  ['strahlung', 'Strahlung & Kernkraft', ['radiation', 'radon', 'nuclear']],
+  ['militaer', 'Militär & Schutz', ['aircraft', 'ship', 'bases', 'barracks', 'bunkers']],
+  ['infra', 'Infrastruktur', ['pipelines', 'cables', 'ixp', 'datacenters', 'telecom', 'masts', 'water']],
+  ['karte', 'Karte & Gelände', ['terrain']],
+];
+const NUCLEAR = {
+  operational: ['in Betrieb', '#facc15'], suspended: ['vorübergehend abgeschaltet', '#60a5fa'],
+  construction: ['im Bau', '#fb923c'], planned: ['geplant', '#c084fc'], shutdown: ['abgeschaltet', '#64748b'],
+  cancelled: ['nie in Betrieb gegangen', '#475569'], unknown: ['unbekannt', '#475569'],
+};
+const REACTOR_TYPES = { PWR: 'Druckwasserreaktor', BWR: 'Siedewasserreaktor', PHWR: 'Schwerwasserreaktor',
+  LWGR: 'graphitmoderiert (RBMK)', GCR: 'gasgekühlt', AGR: 'fortgeschritten gasgekühlt', FBR: 'Schneller Brüter',
+  HTGR: 'Hochtemperaturreaktor', HWGCR: 'schwerwassermoderiert, gasgekühlt', SGHWR: 'Dampferzeugender Schwerwasserreaktor' };
 const MAST_COLORS = { mobile: '#f472b6', other: '#a78bfa' };
 const BUNKER_COLORS = { intact: '#cbd5e1', lost: '#64748b' };
 const WATER_COLORS = { spring: '#60a5fa', drinking: '#34d399', well: '#a78bfa', other: '#94a3b8' };
@@ -45,7 +63,7 @@ const ACCESS = { no: 'kein Zugang', private: 'privat', yes: 'öffentlich', permi
 // Reihenfolge = Priorität beim Anklicken (oberste Kartenebene zuerst)
 const CLICKABLE = ['track-dots', 'aircraft', 'ships', 'news', 'conflict', 'disaster', 'weather-alert', 'radiation-dot',
   'radiation-value', 'stations-temp', 'stations-dot',
-  'weather-temp', 'ixp', 'landings', 'masts', 'bunkers', 'springs', 'datacenters', 'bases', 'bases-barracks', 'cables',
+  'weather-temp', 'ixp', 'landings', 'nuclear', 'masts', 'bunkers', 'springs', 'datacenters', 'bases', 'bases-barracks', 'cables',
   'cables-planned', 'telecom', 'pipelines', 'nina-areas', 'dwd-warn', 'radon-fill', 'country-hit'];
 // Ebenen aus einmalig geladenen Dateien; sie werden erst beim Einschalten in die Karte geholt
 // Ebene -> [Datei in /geo, Werkzeug zum Erzeugen]; Basen und Kasernen teilen sich eine Datei
@@ -55,11 +73,12 @@ const STATIC_FILES = { pipelines: ['pipelines', 'tools/fetch_pipelines.py'], bas
   bunkers: ['bunkers', 'wird geladen (beim ersten Start einige Minuten)', 'osm_de'],
   telecom: ['telecom', 'wird geladen (beim ersten Start einige Minuten)', 'osm_de'],
   water: ['water', 'wird geladen (beim ersten Start einige Minuten)', 'osm_de'],
+  nuclear: ['nuclear', 'wird geladen (wenige Sekunden)', 'nuclear'],
   cables: ['cables', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'],
   ixp: ['ixp', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'],
   datacenters: ['datacenters', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'] };
 const ATTRIBUTION = { cables: '© TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0)', ixp: 'PeeringDB',
-  datacenters: 'PeeringDB' };
+  datacenters: 'PeeringDB', nuclear: 'Kernkraftwerke: GeoNuclearData (ODbL), IAEA PRIS, WNA' };
 const DWD_LEVEL_COLOR = ['match', ['coalesce', ['feature-state', 'level'], 0],
   1, '#f5d90a', 2, '#ff8b3e', 3, '#ff4d4f', 4, '#c026d3', '#000000'];
 const TEMP_COLOR = ['interpolate', ['linear'], ['get', 'temp'], -20, '#7aa8ff', 0, '#cfe3ff', 15, '#e6f2e6',
@@ -77,7 +96,7 @@ const SOURCE_LABEL = {
   weather: 'Wetter (Open-Meteo)', dwd_warnings: 'Wetterwarnungen (DWD)',
   nina: 'Warnungen (NINA, KATWARN)', gdelt: 'Konflikte (GDELT)', dwd_stations: 'Wetterstationen (DWD)',
   radiation: 'Strahlung Deutschland (BfS)', eurdep: 'Strahlung Europa (EURDEP)', radon: 'Radon (BfS)', places: 'Ortsverzeichnis (GeoNames)', countries: 'Länderdaten (Weltbank)', cityinfo: 'Stadtinfos (Destatis, Wikidata)', osm_de: 'Masten, Bunker, Leitungen, Wasser (OSM)',
-  internet: 'Seekabel & Internetknoten (TeleGeography, PeeringDB)',
+  internet: 'Seekabel & Internetknoten (TeleGeography, PeeringDB)', nuclear: 'Kernkraftwerke (GeoNuclearData)',
   weathermaps: 'Radar & Satellit (DWD, EUMETSAT)', wind: 'Wind (Open-Meteo)',
   aircraft: 'Militärflugzeuge (ADS-B)', ships: 'Militärschiffe (AIS)',
 };
@@ -97,6 +116,7 @@ try { saved = JSON.parse(localStorage.getItem('openrisk') || '{}'); } catch { /*
 const state = {
   hours: saved.hours ?? 24,
   mapStyle: saved.mapStyle === 'light' ? 'light' : 'dark', // dunkel oder hell mit Gelände
+  openGroups: saved.openGroups ?? null, // aufgeklappte Ebenen-Gruppen; null = Gruppen mit eingeschalteten Ebenen
   minSeverity: saved.minSeverity ?? 0,
   // Nur was eingeschaltet ist, wird geladen und gezeichnet - das spart auf dem Pi am meisten
   visible: { ...Object.fromEntries(Object.keys(LAYERS).map((name) => [name, false])),
@@ -111,7 +131,7 @@ const persist = () => {
   try {
     localStorage.setItem('openrisk', JSON.stringify(
       { layout: LAYOUT_VERSION, hours: state.hours, minSeverity: state.minSeverity, visible: state.visible,
-        mapStyle: state.mapStyle }));
+        mapStyle: state.mapStyle, openGroups: state.openGroups }));
   } catch { /* privater Modus: Auswahl gilt nur bis zum Neuladen */ }
 };
 
@@ -458,6 +478,16 @@ function addStaticLayer(name) {
         'text-size': 10, 'text-offset': [0, 0.9], 'text-anchor': 'top', 'text-optional': true },
       paint: { 'text-color': file === 'masts' ? MAST_COLORS.mobile : BUNKER_COLORS.intact,
         'text-halo-color': '#0b0f14', 'text-halo-width': 1.2 } }, 'weather-temp');
+  } else if (file === 'nuclear') {
+    const color = ['match', ['get', 'status'], ...Object.entries(NUCLEAR).flatMap(([key, [, c]]) => [key, c]), '#475569'];
+    const size = ['interpolate', ['linear'], ['get', 'mw'], 0, 3.5, 1000, 5, 4000, 8, 8000, 11];
+    map.addLayer({ id: 'nuclear', type: 'circle', source: 'nuclear',
+      paint: { 'circle-color': color, 'circle-stroke-color': '#0b0f14', 'circle-stroke-width': 1.2,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 2, ['*', 0.8, size], 8, ['*', 1.4, size]] } }, 'weather-temp');
+    map.addLayer({ id: 'nuclear-label', type: 'symbol', source: 'nuclear', minzoom: 4.5,
+      layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 10,
+        'text-offset': [0, 1], 'text-anchor': 'top', 'text-optional': true },
+      paint: { 'text-color': color, 'text-halo-color': '#0b0f14', 'text-halo-width': 1.2 } }, 'weather-temp');
   } else if (file === 'water') {
     map.addLayer({ id: 'springs', type: 'circle', source: 'water',
       paint: { 'circle-color': WATER_COLOR, 'circle-stroke-color': '#0b0f14', 'circle-stroke-width': 0.7,
@@ -880,6 +910,27 @@ async function onMapClick(e) {
         h('div', { className: 'meta', textContent: 'Quelle: PeeringDB – nur Rechenzentren, in denen sich Netzbetreiber '
           + 'zusammenschalten; reine Firmen-Rechenzentren fehlen.' })));
       break;
+    case 'nuclear': {
+      const blocks = JSON.parse(p.blocks || '[]');
+      const years = (b) => (b.from ? `${b.from}${b.to ? `–${b.to}` : ''}` : b.built ? `Baubeginn ${b.built}` : '');
+      showPopup(at, h('div', {},
+        h('h3', { textContent: `Kernkraftwerk ${p.name}` }),
+        h('div', { className: 'meta' }, h('span', { className: 'badge', textContent: NUCLEAR[p.status]?.[0] ?? p.status,
+          style: { background: NUCLEAR[p.status]?.[1], color: '#0b0f14' } }),
+        p.country ? regionName.of(p.country) : ''),
+        h('table', {}, row('Reaktoren', `${p.reactors}${p.active ? `, davon ${p.active} in Betrieb` : ''}`),
+          row('Leistung in Betrieb', p.mw ? `${p.mw.toLocaleString('de-DE')} MW` : null)),
+        h('table', { className: 'blocks' }, ...blocks.map((b) => h('tr', {},
+          h('td', { textContent: b.name }),
+          h('td', {}, h('span', { className: 'symbol dot', style: { background: NUCLEAR[b.status]?.[1] } }),
+            NUCLEAR[b.status]?.[0] ?? b.status),
+          h('td', { textContent: [REACTOR_TYPES[b.type] ?? b.type, b.mw ? `${b.mw} MW` : ''].filter(Boolean).join(', ') }),
+          h('td', { textContent: years(b) })))),
+        h('div', { className: 'meta', textContent: `Quelle: GeoNuclearData (IAEA PRIS, WNA), Stand ${p.stand
+          ? date(Date.parse(p.stand) / 1000) : 'unbekannt'} – spätere Änderungen (neue Blöcke, Abschaltungen) können `
+          + 'fehlen.' })));
+      break;
+    }
     case 'springs':
       showPopup(at, h('div', {},
         h('h3', { textContent: p.name || p.type }),
@@ -1058,25 +1109,54 @@ function renderLayers() {
         : tool.startsWith('tools/') ? `${tool} ausführen` : tool];
     })),
   };
-  $('#layers').replaceChildren(...Object.entries(LAYERS).map(([name, layer]) => {
+  // erklärende Hinweise nur bei eingeschalteter Ebene; Hinweise, was fehlt oder zu tun ist, immer
+  const infoOnly = new Set(['conflict', 'radar', 'clouds', 'wind']);
+  const item = (name) => {
+    const layer = LAYERS[name];
     const box = h('input', { type: 'checkbox', checked: state.visible[name] });
-    box.addEventListener('change', () => {
-      state.visible[name] = box.checked;
-      persist();
-      applyVisibility(name);
-      const loader = LOADERS[name];
-      if (loader) {
-        seen.delete(loader.key);
-        loader.load().catch(failed);
-      }
-      renderLegend();
-      renderFeed();
-    });
+    box.addEventListener('change', () => setLayer(name, box.checked));
+    const hint = hints[name] && (!infoOnly.has(name) || state.visible[name]) ? hints[name] : '';
     return h('li', {},
       h('label', {}, box, h('span', { className: 'swatch', style: { borderColor: layer.color } }), layer.label,
         h('span', { className: 'count', textContent: counts[name] ?? '' })),
-      hints[name] ? h('div', { className: 'hint', textContent: hints[name] }) : '');
+      hint ? h('div', { className: 'hint', textContent: hint }) : '');
+  };
+  const grouped = new Set(GROUPS.flatMap(([, , names]) => names));
+  const groups = [...GROUPS, ['weitere', 'Weitere', Object.keys(LAYERS).filter((name) => !grouped.has(name))]]
+    .map(([key, label, names]) => [key, label, names.filter((name) => LAYERS[name])]).filter(([, , names]) => names.length);
+  const open = new Set(state.openGroups
+    ?? groups.filter(([, , names]) => names.some((name) => state.visible[name])).map(([key]) => key));
+  $('#layers').replaceChildren(...groups.map(([key, label, names]) => {
+    const active = names.filter((name) => state.visible[name]);
+    const head = h('button', { type: 'button', className: 'group-head', ariaExpanded: String(open.has(key)) },
+      h('span', { className: 'arrow', textContent: open.has(key) ? '▾' : '▸' }), label,
+      h('span', { className: 'count', textContent: active.length ? `${active.length} an` : '' }));
+    head.addEventListener('click', () => {
+      if (open.has(key)) open.delete(key); else open.add(key);
+      state.openGroups = [...open];
+      persist();
+      renderLayers();
+    });
+    const off = active.length > 1 ? h('button', { type: 'button', className: 'group-off', textContent: 'alle aus',
+      title: `Alle Ebenen in „${label}“ ausschalten`, onclick: () => active.forEach((name) => setLayer(name, false)) }) : '';
+    return h('li', { className: `group${open.has(key) ? ' open' : ''}` }, h('div', { className: 'group-row' }, head, off),
+      open.has(key) ? h('ul', {}, ...names.map(item)) : '');
   }));
+}
+
+/** Ebene ein- oder ausschalten: Karte, Daten, Legende, Lage und Menü nachziehen. */
+function setLayer(name, on) {
+  state.visible[name] = on;
+  persist();
+  applyVisibility(name);
+  const loader = LOADERS[name];
+  if (loader && on) {
+    seen.delete(loader.key);
+    loader.load().catch(failed);
+  }
+  renderLegend();
+  renderFeed();
+  renderLayers();
 }
 
 /** Legende: welche Symbole gerade auf der Karte liegen und was sie bedeuten. */
@@ -1145,6 +1225,10 @@ function renderLegend() {
   }
   if (state.visible.datacenters && state.status?.datacenters) {
     items.push(h('li', {}, dot(LAYERS.datacenters.color), h('span', { textContent: 'Rechenzentrum – größer = mehr Netze' })));
+  }
+  if (state.visible.nuclear && state.status?.nuclear) {
+    items.push(...['operational', 'suspended', 'construction', 'planned', 'shutdown'].map((key) =>
+      h('li', {}, dot(NUCLEAR[key][1]), h('span', { textContent: `Kernkraftwerk ${NUCLEAR[key][0]}` }))));
   }
   if (state.visible.water && state.status?.water) {
     items.push(...[[WATER_COLORS.drinking, 'Trinkwasser (laut Eintrag)'], [WATER_COLORS.spring, 'Quelle'],

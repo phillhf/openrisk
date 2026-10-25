@@ -130,6 +130,22 @@ etwa 3–4 Minuten, mit Ausweichservern; ohne Internet bleibt der letzte Stand):
   Quelle versiegen kann, Pumpe und Zugang. Natürliche Quellen sind nicht überwacht – im Zweifel
   abkochen oder filtern.
 
+## Kernkraftwerke weltweit
+
+Rund 315 Standorte mit gut 750 Reaktoren aus GeoNuclearData (Daten der IAEA, PRIS, und der World
+Nuclear Association). Farbe nach Status: gelb = in Betrieb, blau = vorübergehend abgeschaltet (z. B.
+viele Blöcke in Japan), orange = im Bau, lila = geplant, grau = abgeschaltet. Größe nach Leistung in
+Betrieb. Ein Klick zeigt jeden Block mit Status, Reaktortyp, Leistung und Betriebsjahren. Die Quelle
+wird nur selten gepflegt (Stand steht im Popup, derzeit März 2024) – neuere Inbetriebnahmen oder
+Abschaltungen können fehlen. Monatlich wird nachgesehen.
+
+## Ebenen-Menü
+
+Die Ebenen sind nach Themen gruppiert (Lage & Konflikte, Wetter, Strahlung & Kernkraft, Militär &
+Schutz, Infrastruktur, Karte & Gelände). Jede Gruppe lässt sich mit einem Klick auf- und zuklappen und
+zeigt, wie viele ihrer Ebenen eingeschaltet sind; „alle aus“ schaltet die ganze Gruppe ab. Welche
+Gruppen offen sind, merkt sich der Browser.
+
 ## Internet-Infrastruktur weltweit
 
 Drei Ebenen, monatlich aktualisiert (Abruf etwa 20 Sekunden, ohne Konto; ohne Internet bleibt der letzte Stand):
@@ -265,6 +281,7 @@ nicht möchte, schaltet in `config.toml` `[sources.weathermaps] enabled = false`
 | Militärschiffe | aisstream.io | Dauerverbindung | **kostenloser API-Schlüssel nötig** (siehe unten); nur Schiffe, die AIS als „Militär“ senden |
 | Militärbasen | OpenStreetMap | einmalig | Basen, Flugplätze, Marinestützpunkte, Kasernen – soweit eingetragen |
 | Öl-Pipelines | OpenStreetMap | einmalig | |
+| Kernkraftwerke | GeoNuclearData (IAEA PRIS, WNA) | monatlich | Status je Reaktor, Stand der Quelle beachten |
 | Seekabel | TeleGeography Submarine Cable Map | monatlich | Kabel und Anlandepunkte weltweit |
 | Internetknoten, Rechenzentren | PeeringDB | monatlich | Internet Exchange Points und Kolokations-Rechenzentren weltweit |
 | Masten, Bunker, Leitungen (DE) | OpenStreetMap (Overpass) | monatlich | nur was eingetragen ist |
@@ -382,7 +399,7 @@ Karte und Pipelines © OpenStreetMap-Mitwirkende (ODbL), Kartenstil Protomaps,
 Natural Earth (gemeinfrei), Wetter Open-Meteo (CC BY 4.0, nicht-kommerziell),
 Flugdaten adsb.lol (ODbL), Ortsverzeichnis und Länderdaten GeoNames (CC BY 4.0), Kennzahlen Weltbank (CC BY 4.0),
 Gemeindeverzeichnis Statistisches Bundesamt (Datenlizenz Deutschland 2.0), Wikidata (CC0),
-Seekabel © TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0, nur nicht-kommerziell), Internetknoten und
+Kernkraftwerke GeoNuclearData (ODbL), Seekabel © TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0, nur nicht-kommerziell), Internetknoten und
 Rechenzentren PeeringDB, Radar Deutscher Wetterdienst (Geonutzungsverordnung, Quellenvermerk),
 Satellitenbilder © EUMETSAT, Höhendaten © Mapterhorn (Quellen: mapterhorn.com/attribution).
 Nachrichten-Feeds gehören den jeweiligen Anbietern.

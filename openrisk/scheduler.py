@@ -21,6 +21,7 @@ READY = {
     "cityinfo": cityinfo.ready,
     "osm_de": lambda data_dir: all((data_dir / "geo" / f"{n}.geojson").exists() for n in ("bunkers", "masts", "telecom", "water")),
     "internet": internet.ready,
+    "nuclear": lambda data_dir: (data_dir / "geo" / "nuclear.geojson").exists(),
 }
 AFTER = {"places": ["cityinfo"]}  # nach erfolgreichem Abruf gleich anstoßen (Stadtinfos brauchen das Ortsverzeichnis)
 USER_AGENT = "OpenRisk/0.1 (privater Risikomonitor)"

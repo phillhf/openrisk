@@ -371,7 +371,7 @@ def create_app(cfg: dict, collect: bool = True) -> Starlette:
             "weathermaps": (data_dir / "weathermaps" / "frames.json").exists(),
             "wind": (data_dir / "geo" / "wind.json").exists(),
             **{name: (data_dir / "geo" / f"{name}.geojson").exists() for name in ("pipelines", "bases", "dwd_cells", "nina_areas", "radon",
-                                                                                 "masts", "bunkers", "telecom", "water", "cables",
+                                                                                 "masts", "bunkers", "telecom", "water", "nuclear", "cables",
                                                                                  "landings", "ixp", "datacenters")},
         })
 

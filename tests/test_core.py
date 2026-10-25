@@ -8,7 +8,7 @@ from pathlib import Path
 from pmtiles.tile import deserialize_directory
 
 from openrisk import __version__, db, mapfetch, places, risk, settings, updater
-from openrisk.collectors import NotReady, Context, cityinfo, gdelt, countries, internet, osm_de, weathermaps, wind, aircraft, dwd_stations, dwd_warnings, news, nina, ships, usgs, weather
+from openrisk.collectors import NotReady, Context, cityinfo, gdelt, countries, internet, nuclear, osm_de, weathermaps, wind, aircraft, dwd_stations, dwd_warnings, news, nina, ships, usgs, weather
 from openrisk.geo import Geo
 
 GEO_DIR = Path(__file__).resolve().parent.parent / "data" / "geo"
@@ -638,6 +638,22 @@ class Wind(unittest.TestCase):
         self.assertEqual(wind.components(None, 90), (0, 0))
         lats, lons = wind.grid()
         self.assertEqual((lats[0], lats[-1], lons[0], lons[-1], len(lats) * len(lons)), (46.0, 55.5, 5.0, 16.0, 460))
+
+
+class Nuclear(unittest.TestCase):
+    def test_reactors_grouped_into_plants(self):
+        reactor = lambda name, status, mw, lat=49.709: {  # noqa: E731
+            "Name": name, "Latitude": lat, "Longitude": 8.415, "CountryCode": "DE", "Status": status,
+            "ReactorType": "PWR", "Capacity": mw, "OperationalFrom": "1975-02-26", "OperationalTo": None}
+        found = nuclear.plants([reactor("Biblis-A", "Shutdown", 1146), reactor("Biblis-B", "Operational", 1178),
+                                reactor("Akkuyu-1", "Under Construction", 1200, lat=36.1),
+                                {**reactor("Ohne-Lage", "Planned", 1000), "Latitude": None}])
+        by_name = {f["properties"]["name"]: f["properties"] for f in found}
+        self.assertEqual(set(by_name), {"Biblis", "Akkuyu"})
+        self.assertEqual((by_name["Biblis"]["status"], by_name["Biblis"]["reactors"], by_name["Biblis"]["active"],
+                          by_name["Biblis"]["mw"]), ("operational", 2, 1, 1178))  # ein Block läuft = in Betrieb
+        self.assertEqual(by_name["Akkuyu"]["status"], "construction")
+        self.assertEqual(found[-1]["properties"]["name"], "Biblis")  # aktive Kraftwerke oben
 
 
 class Update(unittest.TestCase):
