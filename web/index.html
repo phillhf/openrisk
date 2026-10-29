@@ -85,6 +85,17 @@
   <main id="map"></main>
 
   <aside id="right">
+    <section id="brief" hidden>
+      <details open>
+        <summary><h2>KI-Lagebericht</h2></summary>
+        <p id="brief-text"></p>
+        <div class="search-row">
+          <span id="brief-meta" class="muted"></span>
+          <button id="brief-make">Erstellen</button>
+        </div>
+        <p class="muted small">Automatisch zusammengefasst aus den gespeicherten Meldungen – kann Fehler enthalten.</p>
+      </details>
+    </section>
     <section class="feed-head">
       <h2>Lage <small id="feed-count"></small></h2>
       <div class="search-row">
@@ -174,6 +185,35 @@
       <p class="muted">Spuren brauchen viel Platz – grob geschätzt 10 MB pro Tag, rund 300 MB für 30 Tage.
         Gezählt wird ab dem letzten Datenabruf: Ohne Internet wird nichts gelöscht.</p>
       <p id="history-info" class="muted"></p>
+    </section>
+    <section>
+      <h2>KI-Lagebericht <small>optional</small></h2>
+      <p class="muted">Ein Sprachmodell fasst die aktuelle Lage in einem kurzen Text zusammen (rechts über der Lage).
+        Entweder ein eigenes Modell über Ollama – dann bleiben alle Daten im eigenen Netz – oder ein Anbieter mit
+        API-Schlüssel. An das Modell geht nur die Liste der Meldungen, keine Einstellungen oder Schlüssel.</p>
+      <div class="row">
+        <label for="ai-provider">KI-Dienst</label>
+        <select id="ai-provider"></select>
+      </div>
+      <div id="ai-fields" hidden>
+        <div class="row">
+          <label for="ai-url">Adresse</label>
+          <input id="ai-url" spellcheck="false" autocomplete="off">
+          <button id="ai-models" type="button">Modelle laden</button>
+        </div>
+        <div class="row">
+          <label for="ai-model">Modell</label>
+          <input id="ai-model" list="ai-model-list" spellcheck="false" autocomplete="off">
+          <datalist id="ai-model-list"></datalist>
+        </div>
+        <div class="row" id="ai-key-row">
+          <label for="ai-key">API-Schlüssel</label>
+          <input id="ai-key" type="password" autocomplete="off" placeholder="Schlüssel eintragen">
+          <span id="ai-key-state" class="muted"></span>
+        </div>
+      </div>
+      <div class="row"><button id="ai-save">Speichern</button></div>
+      <p id="ai-message" class="muted"></p>
     </section>
     <section>
       <h2>API-Schlüssel</h2>

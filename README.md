@@ -130,6 +130,36 @@ etwa 3–4 Minuten, mit Ausweichservern; ohne Internet bleibt der letzte Stand):
   Quelle versiegen kann, Pumpe und Zugang. Natürliche Quellen sind nicht überwacht – im Zweifel
   abkochen oder filtern.
 
+## Brände, Internet-Ausfälle und Frontverlauf
+
+- **Brände vom Satelliten (NASA FIRMS):** alle Brandherde der letzten 24 Stunden weltweit (VIIRS, 375 m),
+  rund 50.000 Punkte; Farbe nach Feuerstrahlungsleistung (gelb schwach bis dunkelrot sehr stark). Enthält auch
+  Industriefeuer und Vulkane. Starke Brandherde in Deutschland (ab 20 MW) erscheinen zusätzlich in der Lage.
+  Alle 6 Stunden, rund 5 MB je Abruf.
+- **Internet-Ausfälle (IODA, Georgia Tech):** in der Lage unter „Katastrophen & Warnungen“ (Symbol
+  Infrastruktur). Gezählt wird nur ein deutlicher Einbruch – Land ab 10 %, Region ab 25 % weniger erreichbare
+  Netze; kurz aussetzende Störungen werden zusammengefasst. Oft steckt ein Stromausfall dahinter – eine
+  weltweite offene Quelle nur für Stromausfälle gibt es nicht.
+- **Frontverlauf Ukraine (DeepStateMap):** besetzte (rot), umkämpfte (grau) und zurückeroberte (grün) Gebiete,
+  dazu weitere besetzte Gebiete wie Krim und Transnistrien. Einschätzung eines ukrainischen OSINT-Projekts,
+  keine amtliche Lage. Alle 6 Stunden.
+
+## KI-Lagebericht (optional)
+
+Ein Sprachmodell fasst die Lage der letzten 24 Stunden in einem kurzen Text zusammen (Weltlage, Deutschland,
+Wetter und Umwelt, Worauf achten) – rechts über der Lage, „Neu erstellen“ auf Knopfdruck. Ohne Einrichtung
+bleibt die Funktion aus. Unter **Einstellungen → KI-Lagebericht**:
+
+- **Ollama:** ein eigenes Modell, lokal oder auf einem anderen Rechner im Netz (Adresse, „Modelle laden“,
+  Modell wählen). Alle Daten bleiben im eigenen Netz. Auf dem Raspberry Pi nur mit kleinen Modellen und
+  Geduld (mehrere Minuten) – besser Ollama auf einem PC im Netz.
+- **OpenAI-kompatibel** (OpenAI, Groq, OpenRouter, Mistral, LM Studio …), **Anthropic (Claude)** oder
+  **Google Gemini** mit eigenem API-Schlüssel.
+
+An das Modell geht nur die Liste der Meldungen (Titel, Ort, Stufe), keine Einstellungen oder Schlüssel. Der
+Schlüssel bleibt auf dem Gerät und wird verworfen, wenn Dienst oder Adresse ohne neuen Schlüssel geändert
+werden. Der Bericht ist automatisch erzeugt und kann Fehler enthalten.
+
 ## Kernkraftwerke weltweit
 
 Rund 315 Standorte mit gut 750 Reaktoren aus GeoNuclearData (Daten der IAEA, PRIS, und der World
@@ -282,6 +312,9 @@ nicht möchte, schaltet in `config.toml` `[sources.weathermaps] enabled = false`
 | Militärbasen | OpenStreetMap | einmalig | Basen, Flugplätze, Marinestützpunkte, Kasernen – soweit eingetragen |
 | Öl-Pipelines | OpenStreetMap | einmalig | |
 | Kernkraftwerke | GeoNuclearData (IAEA PRIS, WNA) | monatlich | Status je Reaktor, Stand der Quelle beachten |
+| Brände | NASA FIRMS (VIIRS) | 6 Std. | letzte 24 Stunden weltweit |
+| Internet-Ausfälle | IODA (Georgia Tech) | 30 min | Länder und Regionen |
+| Frontverlauf Ukraine | DeepStateMap | 6 Std. | Einschätzung, keine amtliche Lage |
 | Seekabel | TeleGeography Submarine Cable Map | monatlich | Kabel und Anlandepunkte weltweit |
 | Internetknoten, Rechenzentren | PeeringDB | monatlich | Internet Exchange Points und Kolokations-Rechenzentren weltweit |
 | Masten, Bunker, Leitungen (DE) | OpenStreetMap (Overpass) | monatlich | nur was eingetragen ist |
@@ -399,7 +432,7 @@ Karte und Pipelines © OpenStreetMap-Mitwirkende (ODbL), Kartenstil Protomaps,
 Natural Earth (gemeinfrei), Wetter Open-Meteo (CC BY 4.0, nicht-kommerziell),
 Flugdaten adsb.lol (ODbL), Ortsverzeichnis und Länderdaten GeoNames (CC BY 4.0), Kennzahlen Weltbank (CC BY 4.0),
 Gemeindeverzeichnis Statistisches Bundesamt (Datenlizenz Deutschland 2.0), Wikidata (CC0),
-Kernkraftwerke GeoNuclearData (ODbL), Seekabel © TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0, nur nicht-kommerziell), Internetknoten und
+Kernkraftwerke GeoNuclearData (ODbL), Brände NASA FIRMS, Internet-Ausfälle IODA, Frontverlauf DeepStateMap, Seekabel © TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0, nur nicht-kommerziell), Internetknoten und
 Rechenzentren PeeringDB, Radar Deutscher Wetterdienst (Geonutzungsverordnung, Quellenvermerk),
 Satellitenbilder © EUMETSAT, Höhendaten © Mapterhorn (Quellen: mapterhorn.com/attribution).
 Nachrichten-Feeds gehören den jeweiligen Anbietern.

@@ -130,6 +130,16 @@ ul, ol { list-style: none; margin: 0; padding: 0; }
 #layers .group-off { padding: 1px 6px; font-size: 11px; }
 #layers .group ul { list-style: none; margin: 0 0 6px; padding: 0 0 0 4px; }
 .popup table.blocks { margin-top: 6px; font-size: 11px; }
+#brief details > summary { list-style: none; cursor: pointer; }
+#brief details > summary::-webkit-details-marker { display: none; }
+#brief details > summary h2 { display: inline; }
+#brief details > summary::before { content: '▸ '; color: var(--muted); }
+#brief details[open] > summary::before { content: '▾ '; }
+#brief-text { white-space: pre-wrap; font-size: 13px; line-height: 1.45; max-height: 45vh; overflow-y: auto; margin: 6px 0; }
+#brief-text:empty { display: none; }
+#brief .search-row { align-items: center; justify-content: space-between; }
+#brief .small { font-size: 11px; margin: 4px 0 0; }
+#ai-message:empty { display: none; }
 .popup table.blocks td { padding: 1px 6px 1px 0; vertical-align: top; }
 .popup table.blocks .symbol.dot { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
 #layers .swatch { width: 12px; height: 12px; border-radius: 50%; border: 3px solid; flex: none; }

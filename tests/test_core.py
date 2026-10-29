@@ -7,8 +7,8 @@ from pathlib import Path
 
 from pmtiles.tile import deserialize_directory
 
-from openrisk import __version__, db, mapfetch, places, risk, settings, updater
-from openrisk.collectors import NotReady, Context, cityinfo, gdelt, countries, internet, nuclear, osm_de, weathermaps, wind, aircraft, dwd_stations, dwd_warnings, news, nina, ships, usgs, weather
+from openrisk import __version__, brief, db, mapfetch, places, risk, settings, updater
+from openrisk.collectors import NotReady, Context, cityinfo, gdelt, countries, fires, frontline, internet, nuclear, osm_de, outages, weathermaps, wind, aircraft, dwd_stations, dwd_warnings, news, nina, ships, usgs, weather
 from openrisk.geo import Geo
 
 GEO_DIR = Path(__file__).resolve().parent.parent / "data" / "geo"
@@ -654,6 +654,61 @@ class Nuclear(unittest.TestCase):
                           by_name["Biblis"]["mw"]), ("operational", 2, 1, 1178))  # ein Block läuft = in Betrieb
         self.assertEqual(by_name["Akkuyu"]["status"], "construction")
         self.assertEqual(found[-1]["properties"]["name"], "Biblis")  # aktive Kraftwerke oben
+
+
+class FiresOutagesFront(unittest.TestCase):
+    def test_fires(self):
+        text = ("latitude,longitude,bright_ti4,scan,track,acq_date,acq_time,satellite,confidence,version,bright_ti5,frp,daynight\n"
+                "50.1,8.6,330,0.4,0.4,2026-10-28,0130,N20,nominal,2.0NRT,290,25.4,N\n"
+                "51.0,9.0,310,0.4,0.4,2026-10-28,0054,N20,low,2.0NRT,280,3.0,N\n")
+        found = fires.parse(text)
+        self.assertEqual(len(found), 1)  # unsichere Erkennung fällt weg
+        self.assertEqual(found[0]["properties"], {"frp": 25, "ts": 1793151000})
+
+    def test_outages_need_a_real_drop_and_merge(self):
+        def alert(t, level, value, history=1000, code="TT", kind="country", source="ping-slash24"):
+            return {"datasource": source, "time": t, "level": level, "value": value, "historyValue": history,
+                    "entity": {"type": kind, "code": code, "name": code}}
+        found = outages.episodes([
+            alert(0, "critical", 980), alert(600, "normal", 1000),  # 2 % weniger: kein Ausfall
+            alert(1000, "critical", 980, code="AA"), alert(1600, "critical", 600, code="AA"),
+            alert(2000, "normal", 1000, code="AA"),
+            alert(4000, "critical", 700, code="AA"),  # kurz danach wieder: derselbe Ausfall, dauert an
+        ])
+        self.assertEqual(len(found), 1)
+        self.assertEqual((found[0]["code"], found[0]["start"], found[0]["end"], round(found[0]["drop"], 2)),
+                         ("AA", 1000, None, 0.4))
+
+    def test_frontline(self):
+        poly = {"type": "Polygon", "coordinates": [[[37.1, 48.1, 0], [37.2, 48.1, 0], [37.2, 48.2, 0], [37.1, 48.1, 0]]]}
+        data = {"map": {"features": [
+            {"geometry": poly, "properties": {"name": "Окуповано /// Occupied /// geoJSON.status.occupied"}},
+            {"geometry": poly, "properties": {"name": "Звільнено /// Liberated /// geoJSON.status.dismissed"}},
+            {"geometry": {"type": "Point", "coordinates": [37, 48, 0]},
+             "properties": {"name": "Напрямок удару /// Direction of attack /// geoJSON.status.at"}}]}}
+        found = frontline.areas(data)
+        self.assertEqual([(f["properties"]["status"], f["properties"]["label"]) for f in found],
+                         [("occupied", "Occupied"), ("liberated", "Liberated")])
+        self.assertEqual(found[0]["geometry"]["coordinates"][0][0], [37.1, 48.1])  # ohne Höhe
+
+
+class AiBrief(unittest.TestCase):
+    def test_key_dropped_when_address_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            settings.save(folder, {"ai": {"provider": "openai", "model": "m", "key": "geheim-123456789"}})
+            settings.save(folder, {"ai": {"provider": "openai", "model": "m2"}})  # gleiche Adresse: Schlüssel bleibt
+            self.assertEqual(settings.load(folder)["ai"]["key"], "geheim-123456789")
+            settings.save(folder, {"ai": {"provider": "openai", "url": "https://fremd.example/v1", "model": "m"}})
+            self.assertEqual(settings.load(folder)["ai"]["key"], "")  # neue Adresse ohne neuen Schlüssel
+            public = settings.public(folder)["ai"]
+            self.assertNotIn("key", public)
+            settings.save(folder, {"ai": {"provider": ""}})
+            self.assertEqual(settings.load(folder)["ai"], {})
+
+    def test_plain_text(self):
+        self.assertEqual(brief._strip_thinking("<think>…</think>**Weltlage**\n## Deutschland\nRuhig."),
+                         "Weltlage\nDeutschland\nRuhig.")
 
 
 class Update(unittest.TestCase):

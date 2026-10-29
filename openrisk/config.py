@@ -50,7 +50,10 @@ DEFAULTS: dict = {
         "cityinfo": {"enabled": True, "interval_min": 14 * 24 * 60},  # Gemeinden (Destatis), Städte (Wikidata)
         "osm_de": {"enabled": True, "interval_min": 30 * 24 * 60},  # Masten, Bunker, Leitungen, Wasser (OpenStreetMap)
         "internet": {"enabled": True, "interval_min": 30 * 24 * 60},
-        "nuclear": {"enabled": True, "interval_min": 30 * 24 * 60},  # Kernkraftwerke (GeoNuclearData)  # Seekabel, Internetknoten, Rechenzentren
+        "nuclear": {"enabled": True, "interval_min": 30 * 24 * 60},  # Kernkraftwerke (GeoNuclearData)
+        "fires": {"enabled": True, "interval_min": 360},  # Brandherde NASA FIRMS, ~5 MB je Abruf
+        "outages": {"enabled": True, "interval_min": 30},  # Internet-Ausfälle (IODA)
+        "frontline": {"enabled": True, "interval_min": 360},  # Frontverlauf Ukraine (DeepStateMap)  # Seekabel, Internetknoten, Rechenzentren
         # Konflikte weltweit aus GDELT (frei, ohne Konto), alle 15 Minuten; gezeigt werden die letzten `days` Tage
         "gdelt": {"enabled": True, "interval_min": 15, "days": 7},
         "aircraft": {

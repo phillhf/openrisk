@@ -14,6 +14,7 @@ DEFAULTS = {
     "track_days": 30,  # Flug- und Schiffsspuren (viel Platz: grob 10 MB je Tag); 0 = unbegrenzt
     "api_keys": {},  # Name -> Schlüssel, siehe API_KEYS
     "update_source": "",  # Ordner oder Web-Adresse mit latest.json (siehe updater.py); leer = keine
+    "ai": {},  # KI-Lagebericht (optional): provider, url, model, key - siehe brief.PROVIDERS
 }
 MAP_ZOOM_MAX = 15  # höchste Stufe der Quelle (ganze Welt 138 GB); einzelne Länder sind viel kleiner
 HISTORY_CHOICES = (30, 90, 180, 365, 730, 0)
@@ -60,8 +61,27 @@ def save(data_dir: Path, changes: dict) -> dict:
             current["api_keys"][name] = str(value).strip()
         else:  # leer = Schlüssel entfernen
             current["api_keys"].pop(name, None)
+    if isinstance(changes.get("ai"), dict):
+        current["ai"] = _ai(current["ai"], changes["ai"])
     _write(data_dir, current)
     return current
+
+
+def _ai(old: dict, new: dict) -> dict:
+    """KI-Dienst übernehmen. Ändern sich Dienst oder Adresse ohne neuen Schlüssel, wird der alte verworfen -
+    sonst ließe sich ein gespeicherter Schlüssel an eine fremde Adresse umleiten."""
+    from .brief import PROVIDERS
+    provider = str(new.get("provider") or "")
+    if provider not in PROVIDERS:
+        return {}
+    url = str(new.get("url") or PROVIDERS[provider]["url"]).strip().rstrip("/")
+    if not url.startswith(("http://", "https://")):
+        url = PROVIDERS[provider]["url"]
+    key = str(new.get("key") or "").strip()
+    if not key and old.get("provider") == provider and old.get("url") == url:
+        key = old.get("key", "")
+    return {"provider": provider, "url": url, "model": str(new.get("model") or PROVIDERS[provider]["model"]).strip(),
+            "key": key if PROVIDERS[provider]["key"] else ""}
 
 
 def _write(data_dir: Path, current: dict) -> None:
@@ -92,8 +112,13 @@ def public(data_dir: Path, fallbacks: dict | None = None) -> dict:
     for name, meta in API_KEYS.items():
         value = current["api_keys"].get(name) or (fallbacks or {}).get(name) or ""
         keys.append({"name": name, **meta, "set": bool(value), "tail": value[-4:] if len(value) >= 12 else ""})
+    from .brief import PROVIDERS
+    ai = current["ai"]
     return {"history_days": current["history_days"],
-            "track_days": current["track_days"], "api_keys": keys}
+            "track_days": current["track_days"], "api_keys": keys,
+            "ai": {"provider": ai.get("provider", ""), "url": ai.get("url", ""), "model": ai.get("model", ""),
+                   "key_set": bool(ai.get("key")), "tail": ai.get("key", "")[-4:] if len(ai.get("key", "")) >= 12 else ""},
+            "ai_providers": {name: {k: v for k, v in meta.items()} for name, meta in PROVIDERS.items()}}
 
 
 def map_zoom_limit(data_dir: Path) -> int:

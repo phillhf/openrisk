@@ -21,7 +21,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Mount, Route
 from starlette.staticfiles import StaticFiles
 
-from . import __version__, assets, collectors, db, mapfetch, places, risk, settings, updater
+from . import __version__, assets, brief, collectors, db, mapfetch, places, risk, settings, updater
 from .collectors.weather import assess
 from .config import ROOT
 from .geo import Geo
@@ -87,6 +87,7 @@ def create_app(cfg: dict, collect: bool = True) -> Starlette:
     region_dir = data_dir / "map" / "regions"  # einzelne Länder in voller Detailstufe
     terrain_dir = data_dir / "map" / "terrain"  # Höhendaten: WORLD.pmtiles (grob) und einzelne Länder
     map_job = mapfetch.MapJob(world)
+    brief_job = brief.BriefJob(data_dir)
     terrain_readers: dict[Path, tuple[float, object]] = {}
     terrain_lock = threading.Lock()
     local = threading.local()
@@ -371,7 +372,7 @@ def create_app(cfg: dict, collect: bool = True) -> Starlette:
             "weathermaps": (data_dir / "weathermaps" / "frames.json").exists(),
             "wind": (data_dir / "geo" / "wind.json").exists(),
             **{name: (data_dir / "geo" / f"{name}.geojson").exists() for name in ("pipelines", "bases", "dwd_cells", "nina_areas", "radon",
-                                                                                 "masts", "bunkers", "telecom", "water", "nuclear", "cables",
+                                                                                 "masts", "bunkers", "telecom", "water", "nuclear", "fires", "frontline", "cables",
                                                                                  "landings", "ixp", "datacenters")},
         })
 
@@ -513,6 +514,30 @@ def create_app(cfg: dict, collect: bool = True) -> Starlette:
             return JSONResponse({"error": str(e)}, status_code=409)
         return JSONResponse(map_state())
 
+    # ------------------------------------------------------------ KI-Lagebericht (optional)
+    def brief_get(request: Request) -> JSONResponse:
+        ai = settings.load(data_dir)["ai"]
+        return JSONResponse({"configured": bool(ai.get("provider") and ai.get("model")), **brief_job.state,
+                             "last": brief_job.last})
+
+    def brief_start(request: Request, body: dict) -> JSONResponse:
+        ai = settings.load(data_dir)["ai"]
+        if not (ai.get("provider") and ai.get("model")):
+            return JSONResponse({"error": "Kein KI-Dienst eingerichtet (Einstellungen → KI-Lagebericht)."}, status_code=400)
+        brief_job.start(ai, lambda: db.connect(db_path), geo)
+        return brief_get(request)
+
+    def ai_models(request: Request, body: dict) -> JSONResponse:
+        """Modelle eines Ollama-Servers auflisten (Adresse aus dem Formular, noch nicht gespeichert)."""
+        url = str(body.get("url") or brief.PROVIDERS["ollama"]["url"])
+        if not url.startswith(("http://", "https://")):
+            return JSONResponse({"error": "Adresse muss mit http:// beginnen."}, status_code=400)
+        try:
+            with httpx.Client() as http:
+                return JSONResponse({"models": brief.models({"url": url}, http)})
+        except Exception as e:  # noqa: BLE001
+            return JSONResponse({"error": f"Ollama nicht erreichbar ({type(e).__name__})"}, status_code=502)
+
     def settings_update(request: Request, body: dict) -> JSONResponse:
         settings.save(data_dir, body)
         if "api_keys" in body:
@@ -650,6 +675,9 @@ def create_app(cfg: dict, collect: bool = True) -> Starlette:
         Route("/api/map/terrain", guarded(terrain_delete), methods=["DELETE"]),
         Route("/terrain/{z}/{x}/{y}.webp", terrain_tile),
         Route("/api/settings", guarded(settings_update), methods=["POST"]),
+        Route("/api/brief", brief_get),
+        Route("/api/brief", guarded(brief_start), methods=["POST"]),
+        Route("/api/ai/models", guarded(ai_models), methods=["POST"]),
         Mount("/map", StaticFiles(directory=data_dir / "map")),
         Mount("/geo", Revalidated(directory=data_dir / "geo")),
         Mount("/weathermaps", Revalidated(directory=data_dir / "weathermaps")),

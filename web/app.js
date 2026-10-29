@@ -25,6 +25,8 @@ const LAYERS = {
   bases: { label: 'Militärbasen', color: '#a3e635', ids: ['bases'] },
   barracks: { label: 'Kasernen', color: '#a8a29e', ids: ['bases-barracks'] },
   pipelines: { label: 'Öl-Pipelines', color: '#e879f9', ids: ['pipelines'] },
+  fires: { label: 'Brände vom Satelliten (NASA)', color: '#f97316', ids: ['fires'] },
+  frontline: { label: 'Frontverlauf Ukraine', color: '#ef4444', ids: ['frontline-fill', 'frontline-line'] },
   nuclear: { label: 'Kernkraftwerke (weltweit)', color: '#facc15', ids: ['nuclear', 'nuclear-label'] },
   radon: { label: 'Radon (BfS)', color: '#f5d90a', ids: ['radon-fill', 'radon-areas-line', 'radon-areas-hit'] },
   masts: { label: 'Mobilfunkmasten (DE)', color: '#f472b6', ids: ['masts', 'masts-label'] },
@@ -37,13 +39,16 @@ const LAYERS = {
 };
 // Ebenen im Menü nach Themen; jede Gruppe lässt sich einklappen
 const GROUPS = [
-  ['lage', 'Lage & Konflikte', ['risk', 'news', 'conflict', 'disaster']],
+  ['lage', 'Lage & Konflikte', ['risk', 'news', 'conflict', 'frontline', 'disaster', 'fires']],
   ['wetter', 'Wetter', ['weather', 'radar', 'clouds', 'wind', 'stations']],
   ['strahlung', 'Strahlung & Kernkraft', ['radiation', 'radon', 'nuclear']],
   ['militaer', 'Militär & Schutz', ['aircraft', 'ship', 'bases', 'barracks', 'bunkers']],
   ['infra', 'Infrastruktur', ['pipelines', 'cables', 'ixp', 'datacenters', 'telecom', 'masts', 'water']],
   ['karte', 'Karte & Gelände', ['terrain']],
 ];
+const FRONT = { occupied: ['von Russland besetzt', '#ef4444'], contested: ['umkämpft / Lage unklar', '#a8a29e'],
+  liberated: ['zurückerobert', '#22c55e'] };
+const FIRE_COLOR = ['step', ['get', 'frp'], '#fde68a', 5, '#fb923c', 20, '#ef4444', 100, '#b91c1c'];
 const NUCLEAR = {
   operational: ['in Betrieb', '#facc15'], suspended: ['vorübergehend abgeschaltet', '#60a5fa'],
   construction: ['im Bau', '#fb923c'], planned: ['geplant', '#c084fc'], shutdown: ['abgeschaltet', '#64748b'],
@@ -63,8 +68,8 @@ const ACCESS = { no: 'kein Zugang', private: 'privat', yes: 'öffentlich', permi
 // Reihenfolge = Priorität beim Anklicken (oberste Kartenebene zuerst)
 const CLICKABLE = ['track-dots', 'aircraft', 'ships', 'news', 'conflict', 'disaster', 'weather-alert', 'radiation-dot',
   'radiation-value', 'stations-temp', 'stations-dot',
-  'weather-temp', 'ixp', 'landings', 'nuclear', 'masts', 'bunkers', 'springs', 'datacenters', 'bases', 'bases-barracks', 'cables',
-  'cables-planned', 'telecom', 'pipelines', 'nina-areas', 'dwd-warn', 'radon-fill', 'country-hit'];
+  'weather-temp', 'ixp', 'landings', 'nuclear', 'fires', 'masts', 'bunkers', 'springs', 'datacenters', 'bases', 'bases-barracks', 'cables',
+  'cables-planned', 'telecom', 'pipelines', 'frontline-fill', 'nina-areas', 'dwd-warn', 'radon-fill', 'country-hit'];
 // Ebenen aus einmalig geladenen Dateien; sie werden erst beim Einschalten in die Karte geholt
 // Ebene -> [Datei in /geo, Werkzeug zum Erzeugen]; Basen und Kasernen teilen sich eine Datei
 const STATIC_FILES = { pipelines: ['pipelines', 'tools/fetch_pipelines.py'], bases: ['bases', 'tools/fetch_bases.py'],
@@ -74,11 +79,13 @@ const STATIC_FILES = { pipelines: ['pipelines', 'tools/fetch_pipelines.py'], bas
   telecom: ['telecom', 'wird geladen (beim ersten Start einige Minuten)', 'osm_de'],
   water: ['water', 'wird geladen (beim ersten Start einige Minuten)', 'osm_de'],
   nuclear: ['nuclear', 'wird geladen (wenige Sekunden)', 'nuclear'],
+  fires: ['fires', 'wird geladen (rund eine Minute)', 'fires'],
+  frontline: ['frontline', 'wird geladen (wenige Sekunden)', 'frontline'],
   cables: ['cables', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'],
   ixp: ['ixp', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'],
   datacenters: ['datacenters', 'wird geladen (beim ersten Start etwa eine Minute)', 'internet'] };
 const ATTRIBUTION = { cables: '© TeleGeography Submarine Cable Map (CC BY-NC-SA 3.0)', ixp: 'PeeringDB',
-  datacenters: 'PeeringDB', nuclear: 'Kernkraftwerke: GeoNuclearData (ODbL), IAEA PRIS, WNA' };
+  datacenters: 'PeeringDB', fires: 'Brände: NASA FIRMS', frontline: 'Front: DeepStateMap', nuclear: 'Kernkraftwerke: GeoNuclearData (ODbL), IAEA PRIS, WNA' };
 const DWD_LEVEL_COLOR = ['match', ['coalesce', ['feature-state', 'level'], 0],
   1, '#f5d90a', 2, '#ff8b3e', 3, '#ff4d4f', 4, '#c026d3', '#000000'];
 const TEMP_COLOR = ['interpolate', ['linear'], ['get', 'temp'], -20, '#7aa8ff', 0, '#cfe3ff', 15, '#e6f2e6',
@@ -97,6 +104,7 @@ const SOURCE_LABEL = {
   nina: 'Warnungen (NINA, KATWARN)', gdelt: 'Konflikte (GDELT)', dwd_stations: 'Wetterstationen (DWD)',
   radiation: 'Strahlung Deutschland (BfS)', eurdep: 'Strahlung Europa (EURDEP)', radon: 'Radon (BfS)', places: 'Ortsverzeichnis (GeoNames)', countries: 'Länderdaten (Weltbank)', cityinfo: 'Stadtinfos (Destatis, Wikidata)', osm_de: 'Masten, Bunker, Leitungen, Wasser (OSM)',
   internet: 'Seekabel & Internetknoten (TeleGeography, PeeringDB)', nuclear: 'Kernkraftwerke (GeoNuclearData)',
+  fires: 'Brände (NASA FIRMS)', outages: 'Internet-Ausfälle (IODA)', frontline: 'Frontverlauf (DeepStateMap)',
   weathermaps: 'Radar & Satellit (DWD, EUMETSAT)', wind: 'Wind (Open-Meteo)',
   aircraft: 'Militärflugzeuge (ADS-B)', ships: 'Militärschiffe (AIS)',
 };
@@ -478,6 +486,18 @@ function addStaticLayer(name) {
         'text-size': 10, 'text-offset': [0, 0.9], 'text-anchor': 'top', 'text-optional': true },
       paint: { 'text-color': file === 'masts' ? MAST_COLORS.mobile : BUNKER_COLORS.intact,
         'text-halo-color': '#0b0f14', 'text-halo-width': 1.2 } }, 'weather-temp');
+  } else if (file === 'fires') {
+    map.addLayer({ id: 'fires', type: 'circle', source: 'fires',
+      paint: { 'circle-color': FIRE_COLOR, 'circle-opacity': 0.85,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 1, ['step', ['get', 'frp'], 0.8, 20, 1.6, 100, 2.6],
+          8, ['step', ['get', 'frp'], 2.5, 20, 4, 100, 6], 13, ['step', ['get', 'frp'], 5, 20, 7, 100, 9]] } },
+    'weather-temp');
+  } else if (file === 'frontline') {
+    const color = ['match', ['get', 'status'], ...Object.entries(FRONT).flatMap(([key, [, c]]) => [key, c]), '#a8a29e'];
+    map.addLayer({ id: 'frontline-fill', type: 'fill', source: 'frontline',
+      paint: { 'fill-color': color, 'fill-opacity': ['match', ['get', 'status'], 'occupied', 0.22, 0.16] } }, firstLabel);
+    map.addLayer({ id: 'frontline-line', type: 'line', source: 'frontline',
+      paint: { 'line-color': color, 'line-width': 1, 'line-opacity': 0.8 } }, firstLabel);
   } else if (file === 'nuclear') {
     const color = ['match', ['get', 'status'], ...Object.entries(NUCLEAR).flatMap(([key, [, c]]) => [key, c]), '#475569'];
     const size = ['interpolate', ['linear'], ['get', 'mw'], 0, 3.5, 1000, 5, 4000, 8, 8000, 11];
@@ -910,6 +930,21 @@ async function onMapClick(e) {
         h('div', { className: 'meta', textContent: 'Quelle: PeeringDB – nur Rechenzentren, in denen sich Netzbetreiber '
           + 'zusammenschalten; reine Firmen-Rechenzentren fehlen.' })));
       break;
+    case 'fires':
+      showPopup(at, h('div', {},
+        h('h3', { textContent: 'Brandherd vom Satelliten' }),
+        h('table', {}, row('Feuerstrahlungsleistung', `${p.frp} MW`), row('Erkannt', `${dateTime(p.ts)} (${ago(p.ts)})`)),
+        h('div', { className: 'meta', textContent: 'Quelle: NASA FIRMS (VIIRS, 375 m). Ein Punkt ist ein Bildpunkt mit '
+          + 'ungewöhnlicher Hitze – meist Wald- oder Flächenbrände, aber auch Industriefeuer (Ölfelder, Stahlwerke) '
+          + 'oder Vulkane. Je größer die Leistung, desto heftiger.' })));
+      break;
+    case 'frontline-fill':
+      showPopup(e.lngLat, h('div', {},
+        h('h3', { textContent: FRONT[p.status]?.[0] ?? p.label }),
+        h('table', {}, row('Bezeichnung', p.label), row('Stand der Karte', p.stand ? dateTime(p.stand) : null)),
+        h('div', { className: 'meta', textContent: 'Quelle: DeepStateMap (ukrainisches OSINT-Projekt). Eine Einschätzung '
+          + 'aus öffentlichen Quellen, keine amtliche Lage; die Front verschiebt sich täglich.' })));
+      break;
     case 'nuclear': {
       const blocks = JSON.parse(p.blocks || '[]');
       const years = (b) => (b.from ? `${b.from}${b.to ? `–${b.to}` : ''}` : b.built ? `Baubeginn ${b.built}` : '');
@@ -1225,6 +1260,16 @@ function renderLegend() {
   }
   if (state.visible.datacenters && state.status?.datacenters) {
     items.push(h('li', {}, dot(LAYERS.datacenters.color), h('span', { textContent: 'Rechenzentrum – größer = mehr Netze' })));
+  }
+  if (state.visible.fires && state.status?.fires) {
+    items.push(...[['#fde68a', 'Brandherd schwach (unter 5 MW)'], ['#fb923c', 'Brandherd mittel (bis 20 MW)'],
+      ['#ef4444', 'Brandherd stark (bis 100 MW)'], ['#b91c1c', 'Brandherd sehr stark']]
+      .map(([color, label]) => h('li', {}, dot(color), h('span', { textContent: label }))));
+  }
+  if (state.visible.frontline && state.status?.frontline) {
+    items.push(...Object.values(FRONT).map(([label, color]) => h('li', {},
+      h('span', { className: 'symbol dot', style: { background: color, opacity: 0.6, borderRadius: '2px' } }),
+      h('span', { textContent: `Ukraine: ${label}` }))));
   }
   if (state.visible.nuclear && state.status?.nuclear) {
     items.push(...['operational', 'suspended', 'construction', 'planned', 'shutdown'].map((key) =>
@@ -1551,6 +1596,24 @@ const LOADERS = {
   wind: { key: 'wind', load: () => loadWind() },
 };
 
+/** KI-Lagebericht (optional): nur sichtbar, wenn unter Einstellungen ein KI-Dienst eingerichtet ist. */
+let briefTimer = null;
+async function loadBrief() {
+  const b = await api('/api/brief');
+  const box = $('#brief');
+  box.hidden = !b.configured;
+  if (!b.configured) return;
+  const running = b.state === 'running';
+  $('#brief-make').disabled = running;
+  $('#brief-make').textContent = running ? 'wird erstellt …' : b.last ? 'Neu erstellen' : 'Erstellen';
+  $('#brief-meta').textContent = running ? `Das Modell schreibt – je nach Rechner einige Sekunden bis Minuten.`
+    : b.state === 'error' ? `Fehler: ${b.error}`
+    : b.last ? `${dateTime(b.last.created)} · ${b.last.model}` : 'Noch kein Bericht.';
+  $('#brief-text').textContent = b.last?.text ?? '';
+  clearTimeout(briefTimer);
+  if (running) briefTimer = setTimeout(() => loadBrief().catch(failed), 3000);
+}
+
 /** Bilder des Wetterfilms (Verzeichnis) und das Windfeld - nur wenn die Ebene eingeschaltet ist. */
 let filmLoaded = 0;
 async function loadFilm() {
@@ -1615,6 +1678,8 @@ function bindSettings() {
     select.value = String(Math.max(5, Math.min(chosen, m.zoom_limit)));
     renderRegions(m);
     renderTerrain(m);
+    lastSettings = m.settings;
+    renderAi(m.settings);
     renderKeys(m.settings.api_keys);
     $('#history-days').value = String(m.settings.history_days);
     $('#track-days').value = String(m.settings.track_days);
@@ -1714,6 +1779,60 @@ function bindSettings() {
           ? `Status: ${status.message}` : key.hint }));
     }));
   };
+
+  // KI-Lagebericht: Dienst wählen; Schlüssel verlassen den Server nicht (angezeigt wird nur „gespeichert“)
+  let aiShown = '';
+  const renderAi = (s) => {
+    const signature = JSON.stringify(s.ai);
+    if (signature === aiShown) return;
+    aiShown = signature;
+    const providers = s.ai_providers;
+    const select = $('#ai-provider');
+    if (!select.options.length) {
+      select.replaceChildren(h('option', { value: '', textContent: 'Aus' }),
+        ...Object.entries(providers).map(([name, meta]) => h('option', { value: name, textContent: meta.label })));
+    }
+    select.value = s.ai.provider;
+    $('#ai-url').value = s.ai.url;
+    $('#ai-model').value = s.ai.model;
+    $('#ai-key').value = '';
+    $('#ai-key-state').textContent = s.ai.key_set ? `gespeichert${s.ai.tail ? ` (…${s.ai.tail})` : ''}` : '';
+    showAiFields();
+  };
+  const showAiFields = () => {
+    const name = $('#ai-provider').value;
+    const meta = (aiProviders() ?? {})[name];
+    $('#ai-fields').hidden = !name;
+    $('#ai-key-row').hidden = !meta?.key;
+    $('#ai-models').hidden = name !== 'ollama';
+    if (meta && !$('#ai-url').value) $('#ai-url').value = meta.url;
+    if (meta && !$('#ai-model').value) $('#ai-model').value = meta.model;
+  };
+  let lastSettings = null;
+  const aiProviders = () => lastSettings?.ai_providers;
+  $('#ai-provider').addEventListener('change', () => {
+    const meta = aiProviders()?.[$('#ai-provider').value];
+    $('#ai-url').value = meta?.url ?? '';
+    $('#ai-model').value = meta?.model ?? '';
+    showAiFields();
+  });
+  $('#ai-models').addEventListener('click', async () => {
+    const result = await send('POST', '/api/ai/models', { url: $('#ai-url').value.trim() });
+    if (result.error) { $('#ai-message').textContent = result.error; return; }
+    $('#ai-model-list').replaceChildren(...result.models.map((name) => h('option', { value: name })));
+    if (!$('#ai-model').value && result.models.length) $('#ai-model').value = result.models[0];
+    $('#ai-message').textContent = result.models.length
+      ? `Installiert: ${result.models.join(', ')} – im Feld „Modell“ auswählen.`
+      : 'Keine Modelle installiert (z. B. „ollama pull qwen3.5:4b“).';
+  });
+  $('#ai-save').addEventListener('click', async () => {
+    const result = await send('POST', '/api/settings', { ai: { provider: $('#ai-provider').value,
+      url: $('#ai-url').value.trim(), model: $('#ai-model').value.trim(), key: $('#ai-key').value.trim() } });
+    render(result);
+    $('#ai-message').textContent = result.settings?.ai?.provider ? 'Gespeichert. Der Bericht steht rechts über der Lage.'
+      : 'KI-Lagebericht ausgeschaltet.';
+    loadBrief().catch(failed);
+  });
 
   // Software-Update: Einspielen geht nur direkt am Gerät (localhost), weil dabei neuer Programmcode läuft
   const renderUpdate = (u) => {
@@ -1985,6 +2104,12 @@ async function main() {
     every(600, loadRadiation),
     every(900, loadConflicts), every(300, loadFilm), every(1800, loadWind)]);
   every(60, loadStatus);
+  loadBrief().catch(failed);
+  $('#brief-make').addEventListener('click', async () => {
+    const result = await send('POST', '/api/brief');
+    if (result.error) $('#brief-meta').textContent = result.error;
+    loadBrief().catch(failed);
+  });
   setInterval(renderFeed, 60_000 * 5); // relative Zeitangaben auffrischen
 }
 
